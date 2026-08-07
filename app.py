@@ -1,166 +1,205 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
 import joblib
 
-# Configuração da página do Streamlit
+# Configuração da página
 st.set_page_config(
     page_title="Passos Mágicos - Prevenção de Defasagem",
     page_icon="🎓",
     layout="wide"
 )
 
-# Estilização básica e Títulos
 st.title("🎓 Sistema Preditivo de Prevenção ao Risco de Defasagem")
 st.subheader("Análise Preventiva e Inteligência de Dados - Ciclo 2024")
 st.markdown("---")
 
-# Carregar os dados pontuados e o modelo
+# Carregamento de dados e modelo
 @st.cache_data
 def carregar_dados():
-    df = pd.read_csv('resultados_predicoes_2024.csv')
-    return df
+    return pd.read_csv('resultados_predicoes_2024.csv')
 
 try:
     df_2024 = carregar_dados()
     modelo = joblib.load('modelo_xgboost_passos_refinado.pkl')
 except Exception as e:
-    st.error(f"Erro ao carregar os arquivos necessários. Certifique-se de que 'resultados_predicoes_2024.csv' e 'modelo_xgboost_passos_refinado.pkl' estão na raiz do repositório. Detalhes: {e}")
+    st.error(f"Erro ao carregar os arquivos. Detalhes: {e}")
     st.stop()
 
-# Mapeamento interno de Fases usado no treinamento do modelo
-# Certifique-se de que as chaves correspondam exatamente às colunas categóricas tratadas no notebook
-fases_mapeamento = {
-    "Alfa": 0, "Quartzo": 1, "Ágata": 2, "Ametista": 3, 
-    "Topázio": 4, "Opala": 5, "Turmalina": 6
-}
-
 # ==============================================================================
-# ABAS DE VISUALIZAÇÃO
+# ABAS DA APLICAÇÃO
 # ==============================================================================
 aba_simulador, aba_visao_geral, aba_busca_individual = st.tabs([
-    "🔮 Simulador Preditivo (Momento Futuro)", 
+    "🔮 Simulador Preditivo", 
     "📊 Visão Geral da Instituição", 
-    "🔍 Busca por Aluno & Fila de Atenção"
+    "🔍 Fila de Atenção"
 ])
 
 # ------------------------------------------------------------------------------
-# ABA 1: SIMULADOR PREDITIVO
+# ABA 1: SIMULADOR PREDITIVO (MODELO PREVENTIVO ATUALIZADO)
 # ------------------------------------------------------------------------------
 with aba_simulador:
     st.markdown("### 🔮 Simulador de Risco Preventivo")
-    st.markdown("Insira os indicadores comportamentais e acadêmicos abaixo para prever em tempo real a probabilidade de risco de defasagem.")
+    st.markdown("Ajuste os indicadores abaixo para prever a probabilidade de risco. O modelo foi ajustado para atuar preventivamente reagindo de forma sensível às oscilações de notas e engajamento.")
     
-    # Criando formulário estruturado para a entrada de dados do modelo
     with st.form("formulario_simulacao"):
         c1, c2, c3 = st.columns(3)
         
         with c1:
-            idade_atual = st.number_input("Idade Atual do Aluno:", min_value=5, max_value=25, value=12)
-            anos_passos = st.number_input("Anos de Vínculo na Passos Mágicos:", min_value=0, max_value=15, value=2)
-            fase_selecionada = st.selectbox("Fase Atual do Aluno:", list(fases_mapeamento.keys()))
+            idade_atual = st.number_input("Idade Atual:", min_value=5, max_value=25, value=12)
+            anos_passos = st.number_input("Anos de Vínculo (Passos Mágicos):", min_value=0, max_value=15, value=2)
+            pedra_atual = st.selectbox("Pedra Conceito:", ["Quartzo", "Ágata", "Ametista", "Topázio"])
+            genero = st.selectbox("Gênero:", ["Feminino", "Masculino"])
             
         with c2:
-            nota_ida = st.slider("Nota IDA (Indicador de Desempenho Acadêmico):", 0.0, 10.0, 7.0, step=0.1)
-            nota_ieg = st.slider("Nota IEG (Indicador de Engajamento):", 0.0, 10.0, 7.5, step=0.1)
-            nota_ips = st.slider("Nota IPS (Indicador Psicossocial):", 0.0, 10.0, 7.2, step=0.1)
+            nota_inde = st.slider("Nota INDE (Geral):", 0.0, 10.0, 7.0, step=0.1)
+            nota_ida = st.slider("Nota IDA (Desempenho Acadêmico):", 0.0, 10.0, 7.0, step=0.1)
+            nota_ieg = st.slider("Nota IEG (Engajamento):", 0.0, 10.0, 7.5, step=0.1)
+            nota_ian = st.slider("Nota IAN (Adequação de Nível):", 0.0, 10.0, 7.0, step=0.1)
             
         with c3:
-            nota_ipv = st.slider("Nota IPV (Indicador de Ponto de Virada):", 0.0, 10.0, 6.8, step=0.1)
-            nota_ian = st.slider("Nota IAN (Indicador de Adequação de Nível):", 0.0, 10.0, 7.0, step=0.1)
-            pedra_atual = st.selectbox("Pedra Conceito Atual:", ["Quartzo", "Ágata", "Ametista", "Topázio"])
+            nota_ips = st.slider("Nota IPS (Psicossocial):", 0.0, 10.0, 7.2, step=0.1)
+            nota_ipv = st.slider("Nota IPV (Ponto de Virada):", 0.0, 10.0, 6.8, step=0.1)
+            delta_inde = st.slider("Evolução INDE vs Ano Anterior (Delta):", -10.0, 10.0, 0.0, step=0.1)
             
         botao_simular = st.form_submit_button("Gerar Análise Preditiva")
 
     if botao_simular:
-        # Montar o vetor de entrada com base nas features exatas que seu modelo XGBoost espera
-        # NOTA: Ajuste a ordem e os nomes das chaves conforme as colunas do X_train do seu notebook
-        dados_input = pd.DataFrame([{
-            'Idade_Atual': idade_atual,
-            'Anos_de_Passos_Magicos': anos_passos,
-            'Fase': fases_mapeamento[fase_selecionada],
-            'IDA': nota_ida,
-            'IEG': nota_ieg,
-            'IPS': nota_ips,
-            'IPV': nota_ipv,
-            'IAN': nota_ian
-        }])
+        # 1. Lista atualizada de colunas (Exatamente as 36 colunas sem a Defasagem)
+        colunas_treino = [
+            'INDE', 'Cg', 'Cf', 'Ct', 'IAN', 'IAA', 'IEG', 'IPS', 'IDA', 'IPP', 'IPV', 
+            'Matematica', 'Portugues', 'Ingles', 'Ano Pesquisa', 'Pedra_Atual_Cod', 
+            'Gênero_Masculino', 'Gênero_Menina', 'Gênero_Menino', 
+            'Instituição de ensino_Concluiu O 3º Em', 'Instituição de ensino_Escola Jp Ii', 
+            'Instituição de ensino_Escola Pública', 'Instituição de ensino_Nenhuma Das Opções Acima', 
+            'Instituição de ensino_Privada', 'Instituição de ensino_Privada *Parcerias Com Bolsa 100%', 
+            'Instituição de ensino_Privada - Pagamento Por *Empresa Parceira', 
+            'Instituição de ensino_Privada - Programa De Apadrinhamento', 
+            'Instituição de ensino_Pública', 'Instituição de ensino_Rede Decisão', 
+            'Delta_INDE', 'Delta_IDA', 'Delta_IEG', 'Delta_IPS', 'Delta_IPV', 
+            'Idade_Atual', 'Anos_de_Passos_Magicos'
+        ]
+
+        # 2. Inicialização do dicionário com todas as colunas zeradas
+        input_dict = {col: 0 for col in colunas_treino}
         
+        # Inserção de valores neutros padrão nas categorias que não estão na interface
+        input_dict.update({
+            'Ano Pesquisa': 2024,
+            'Instituição de ensino_Escola Pública': 1,
+            'IPP': 7, 
+            'Delta_IDA': 0,
+            'Delta_IEG': 0,
+            'Delta_IPS': 0,
+            'Delta_IPV': 0
+        })
+
+        # 3. Mapeamento das entradas da interface
+        mapa_pedras = {'Quartzo': 1, 'Ágata': 2, 'Ametista': 3, 'Topázio': 4}
+        
+        input_dict['Idade_Atual'] = idade_atual
+        input_dict['Anos_de_Passos_Magicos'] = anos_passos
+        input_dict['Pedra_Atual_Cod'] = mapa_pedras[pedra_atual]
+        
+        # ESPELHAMENTO DE VARIÁVEIS (Força o modelo a compreender a queda das notas)
+        # Sincroniza a nota IDA do slider com as matérias específicas
+        input_dict['IDA'] = nota_ida
+        input_dict['Matematica'] = nota_ida
+        input_dict['Portugues'] = nota_ida
+        input_dict['Ingles'] = nota_ida
+        
+        # Sincroniza a nota IEG do slider com o indicador Ct
+        input_dict['IEG'] = nota_ieg
+        input_dict['Ct'] = nota_ieg
+        
+        # Sincroniza a nota INDE com as métricas dependentes
+        input_dict['INDE'] = nota_inde
+        input_dict['Cg'] = nota_inde
+        input_dict['Cf'] = nota_inde * 10 
+        input_dict['IAA'] = nota_inde
+        
+        input_dict['IAN'] = nota_ian
+        input_dict['IPS'] = nota_ips
+        input_dict['IPV'] = nota_ipv
+        input_dict['Delta_INDE'] = delta_inde
+        
+        if genero == "Feminino":
+            input_dict['Gênero_Menina'] = 1
+        else:
+            input_dict['Gênero_Masculino'] = 1
+
+        # 4. Criando o DataFrame final respeitando estritamente a ordem da modelagem
+        df_simulacao = pd.DataFrame([input_dict])[colunas_treino]
+        
+        # 5. Execução do modelo
         try:
-            # Predição direta usando o pipeline/modelo do XGBoost
-            probabilidade = modelo.predict_proba(dados_input)[0][1] * 100
+            probabilidade = modelo.predict_proba(df_simulacao)[0][1] * 100
             
-            # Exibição do diagnóstico baseado na calibração protetora do seu modelo
             st.markdown("---")
             st.markdown("### 📋 Diagnóstico da Simulação")
             
             col_metrica, col_texto = st.columns([1, 2])
             
             with col_metrica:
-                if probabilidade >= 50.0: # Threshold padrão ou calibrado
+                if probabilidade >= 50.0:
                     st.error(f"Risco: {probabilidade:.1f}%")
                     st.markdown("🔴 **ALERTA DE RISCO ATIVADO**")
                 else:
                     st.success(f"Risco: {probabilidade:.1f}%")
-                    st.markdown("🔵 **STATUS: MONITORAMENTO REGULAR**")
+                    st.markdown("🔵 **STATUS: REGULAR**")
                     
             with col_texto:
                 st.markdown("**Direcionamento Pedagógico:**")
                 if probabilidade >= 50.0:
-                    st.write("Este perfil simulado apresenta instabilidade nos indicadores críticos de evolução. Recomenda-se a inclusão imediata na fila prioritária de acompanhamento psicopedagógico antes da consolidação do ciclo.")
+                    st.write("O perfil analisado indica um acúmulo de variáveis de alerta nos indicadores de base. É recomendada a inclusão imediata na fila de acompanhamento psicopedagógico ativo.")
                 else:
-                    st.write("O aluno demonstra métricas de maturação saudáveis e está respondendo bem ao tempo de instituição. Manter plano de acompanhamento padrão.")
+                    st.write("Os indicadores comportamentais e acadêmicos estão saudáveis de acordo com a maturação e histórico. Manter a rotina de avaliação e acompanhamento padrão.")
+                    
         except Exception as sim_error:
-            st.error(f"Erro ao processar as variáveis na árvore de decisão do modelo. Garanta que a ordem das colunas no dataframe de simulação corresponda perfeitamente ao formato de treino. Detalhes: {sim_error}")
+            st.error(f"Erro de processamento da matriz de decisão. Garanta que todas as colunas correspondem ao modelo atualizado (.pkl). Detalhes: {sim_error}")
 
 # ------------------------------------------------------------------------------
 # ABA 2: VISÃO GERAL INSTITUCIONAL
 # ------------------------------------------------------------------------------
 with aba_visao_geral:
-    st.markdown("### Distribuição Macroscópica do Risco (Base Ativa 2024)")
+    st.markdown("### Mapeamento Ativo (Base 2024)")
     
     g1, g2 = st.columns([1, 1.5])
     
     with g1:
         df_volumetria = df_2024['Alerta_Risco'].value_counts().reset_index()
-        df_volumetria.columns = ['Status de Risco', 'Quantidade']
+        df_volumetria.columns = ['Status', 'Quantidade']
         
         fig_volumetria = px.pie(
-            df_volumetria, values='Quantidade', names='Status de Risco', hole=0.5,
-            color='Status de Risco', color_discrete_map={'Sim': '#e74c3c', 'Não': '#34495e'},
-            title='Proporção de Alunos Monitorados'
+            df_volumetria, values='Quantidade', names='Status', hole=0.5,
+            color='Status', color_discrete_map={'Sim': '#e74c3c', 'Não': '#34495e'},
+            title='Proporção de Alunos'
         )
         fig_volumetria.update_traces(textposition='inside', textinfo='percent+label')
         st.plotly_chart(fig_volumetria, use_container_width=True)
         
     with g2:
         df_cruzamento = df_2024.groupby(['Fase', 'Alerta_Risco']).size().reset_index(name='Quantidade')
-        df_totais_fase = df_2024.groupby('Fase').size().reset_index(name='Total_Fase')
-        df_cruzamento = df_cruzamento.merge(df_totais_fase, on='Fase')
-        df_cruzamento['Porcentagem_Na_Fase'] = ((df_cruzamento['Quantidade'] / df_cruzamento['Total_Fase']) * 100).round(1)
+        df_totais = df_2024.groupby('Fase').size().reset_index(name='Total_Fase')
+        df_cruzamento = df_cruzamento.merge(df_totais, on='Fase')
+        df_cruzamento['Porcentagem'] = ((df_cruzamento['Quantidade'] / df_cruzamento['Total_Fase']) * 100).round(1)
         
         fig_fases = px.bar(
             df_cruzamento, x='Fase', y='Quantidade', color='Alerta_Risco',
             color_discrete_map={'Sim': '#e74c3c', 'Não': '#34495e'}, barmode='stack',
-            title='Severidade e Concentração de Risco por Fase Escolar',
-            labels={'Fase': 'Fase do Aluno', 'Quantidade': 'Número de Alunos'}
+            title='Concentração de Risco por Fase Escolar'
         )
-        fig_fases.update_traces(
-            hovertemplate="<b>Fase:</b> %{x}<br><b>Quantidade:</b> %{y} alunos<br><b>Representa:</b> %{customdata}% da fase",
-            customdata=df_cruzamento['Porcentagem_Na_Fase']
-        )
+        fig_fases.update_traces(hovertemplate="<b>Fase:</b> %{x}<br><b>Qtd:</b> %{y}<br><b>Proporção na fase:</b> %{customdata}%", customdata=df_cruzamento['Porcentagem'])
         st.plotly_chart(fig_fases, use_container_width=True)
 
 # ------------------------------------------------------------------------------
-# ABA 3: FILA DE ATENÇÃO INDIVIDUAL
+# ABA 3: FILA DE ATENÇÃO
 # ------------------------------------------------------------------------------
 with aba_busca_individual:
-    st.markdown("### Lista de Prioridade Pedagógica")
-    st.markdown("Utilize a busca ou ordenação da tabela para encontrar o histórico pontuado dos alunos vigentes.")
+    st.markdown("### Fila de Prioridade Pedagógica")
     
-    filtro_status = st.selectbox("Filtrar Tabela por Situação:", ["Todos", "Apenas em Alerta de Risco", "Sem Alerta"])
+    filtro_status = st.selectbox("Filtrar Situação:", ["Apenas em Alerta de Risco", "Sem Alerta", "Todos"])
     
     df_filtrado = df_2024.copy()
     if filtro_status == "Apenas em Alerta de Risco":
@@ -168,7 +207,7 @@ with aba_busca_individual:
     elif filtro_status == "Sem Alerta":
         df_filtrado = df_filtrado[df_filtrado['Alerta_Risco'] == 'Não']
         
-    busca_ra = st.text_input("Digite o RA do Aluno (Ex: RA-102):").strip()
+    busca_ra = st.text_input("Buscar RA (Ex: RA-102):").strip()
     if busca_ra:
         df_filtrado = df_filtrado[df_filtrado['RA'].str.contains(busca_ra, case=False, na=False)]
         
@@ -177,7 +216,3 @@ with aba_busca_individual:
         use_container_width=True,
         hide_index=True
     )
-
-# Rodapé institucional
-st.markdown("---")
-st.caption("Solução desenvolvida para o Datathon Passos Mágicos - Pós Tech Data Analytics. O modelo prioriza a sensibilidade (Recall de 72%) para mitigar falsos negativos.")
