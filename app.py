@@ -1,34 +1,42 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import plotly.express as px
 import joblib
 
-st.set_page_config(page_title="Passos Mágicos - Radar Preventivo", page_icon="🎓", layout="wide")
+# ==============================================================================
+# CONFIGURAÇÃO INICIAL
+# ==============================================================================
+st.set_page_config(
+    page_title="Passos Mágicos - Radar Preventivo",
+    page_icon="🎓",
+    layout="wide"
+)
 
 st.title("🎓 Radar Psicossocial e Comportamental")
 st.subheader("Sistema de Alerta Precoce de Vulnerabilidade - Ciclo 2024")
 st.markdown("---")
 
+# ==============================================================================
+# CARREGAMENTO DOS ARQUIVOS
+# ==============================================================================
 @st.cache_data
 def carregar_dados():
     return pd.read_csv('resultados_predicoes_2024.csv')
 
 try:
     df_2024 = carregar_dados()
-    modelo = joblib.load('modelo_xgboost_passos_refinado.pkl')
+    modelo = joblib.load('modelo_vencedor_datathon.pkl')
 except Exception as e:
-    st.error(f"Erro ao carregar os arquivos. Detalhes: {e}")
+    st.error(f"Erro ao carregar os arquivos. Certifique-se de que 'resultados_predicoes_2024.csv' e 'modelo_vencedor_datathon.pkl' estão no repositório. Detalhes: {e}")
     st.stop()
 
-aba_simulador, aba_busca_individual = st.tabs(["🔮 Simulador Preventivo", "🔍 Base de Alunos (2024)"])
+aba_simulador, aba_busca = st.tabs(["🔮 Simulador Preventivo", "🔍 Base Institucional (2024)"])
 
-# ------------------------------------------------------------------------------
-# ABA 1: SIMULADOR PREDITIVO (FOCO COMPORTAMENTAL)
-# ------------------------------------------------------------------------------
+# ==============================================================================
+# ABA 1: SIMULADOR PREDITIVO
+# ==============================================================================
 with aba_simulador:
-    st.markdown("### 🔮 Análise Individual de Risco")
-    st.markdown("O modelo preditivo analisa fatores sociodemográficos e psicossociais para antecipar riscos de defasagem, sem depender de notas acadêmicas.")
+    st.markdown("### Análise Individual de Risco")
+    st.markdown("Antecipar a probabilidade de um aluno apresentar baixo desempenho (INDE < 6.0) analisando exclusivamente seus indicadores psicossociais e de engajamento.")
     
     with st.form("formulario_simulacao"):
         c1, c2, c3 = st.columns(3)
@@ -45,24 +53,25 @@ with aba_simulador:
             ipp = st.slider("IPP (Psicopedagógico):", 0.0, 10.0, 7.0, step=0.1)
             ipv = st.slider("IPV (Ponto de Virada):", 0.0, 10.0, 6.5, step=0.1)
             
-        botao_simular = st.form_submit_button("Gerar Diagnóstico Preventivo")
+        botao_simular = st.form_submit_button("Gerar Diagnóstico")
 
     if botao_simular:
-        # Ordem EXATA das colunas que restaram no seu X_treino
-        colunas_treino = ['IEG', 'IPS', 'IPP', 'IPV', 'Anos_de_Passos_Magicos', 'Idade_Atual']
+        # A ordem deve ser estritamente igual à lista "features" do treinamento
+        colunas_treino = ['IEG', 'IPS', 'IPP', 'IPV', 'Idade_Atual', 'Anos_de_Passos_Magicos']
         
         input_dict = {
             'IEG': ieg,
             'IPS': ips,
             'IPP': ipp,
             'IPV': ipv,
-            'Anos_de_Passos_Magicos': anos_passos,
-            'Idade_Atual': idade_atual
+            'Idade_Atual': idade_atual,
+            'Anos_de_Passos_Magicos': anos_passos
         }
 
         df_simulacao = pd.DataFrame([input_dict])[colunas_treino]
         
         try:
+            # Captura a probabilidade da classe 1 (Em Risco)
             probabilidade = modelo.predict_proba(df_simulacao)[0][1] * 100
             
             st.markdown("---")
@@ -70,9 +79,8 @@ with aba_simulador:
             
             col_metrica, col_texto = st.columns([1, 2])
             
-            # Limiar de negócio ajustado para 35% (alta captura preventiva)
             with col_metrica:
-                if probabilidade >= 35.0:
+                if probabilidade >= 50.0:
                     st.error(f"Risco Projetado: {probabilidade:.1f}%")
                     st.markdown("🔴 **ALERTA DE VULNERABILIDADE**")
                 else:
@@ -80,19 +88,19 @@ with aba_simulador:
                     st.markdown("🔵 **PERFIL ESTÁVEL**")
                     
             with col_texto:
-                if probabilidade >= 35.0:
-                    st.write("**Direcionamento:** O cruzamento de idade, tempo de ONG e indicadores psicossociais aponta vulnerabilidade futura. Priorizar escuta ativa e acolhimento familiar antes que reflita no desempenho acadêmico.")
+                if probabilidade >= 50.0:
+                    st.write("**Direcionamento:** O modelo cruzou o perfil comportamental e de engajamento do aluno e detectou um padrão forte de vulnerabilidade. É recomendada a inclusão na fila de acompanhamento psicopedagógico ativo.")
                 else:
-                    st.write("**Direcionamento:** O aluno demonstra maturidade psicológica e engajamento compatíveis com sua fase. Manter acompanhamento padrão.")
+                    st.write("**Direcionamento:** Os indicadores psicossociais e de maturidade do aluno apresentam estabilidade e resiliência frente aos desafios acadêmicos. Manter rotina padrão.")
                     
         except Exception as sim_error:
-            st.error(f"Erro de processamento. Detalhes: {sim_error}")
+            st.error(f"Erro de processamento da simulação. Detalhes: {sim_error}")
 
-# ------------------------------------------------------------------------------
-# ABA 2: FILA DE ATENÇÃO
-# ------------------------------------------------------------------------------
-with aba_busca_individual:
-    st.markdown("### Base de Dados Institucional")
+# ==============================================================================
+# ABA 2: BASE INSTITUCIONAL
+# ==============================================================================
+with aba_busca:
+    st.markdown("### Consulta de Alunos - Ciclo Atual")
     
     busca = st.text_input("Buscar aluno por RA ou Nome:").strip()
     
