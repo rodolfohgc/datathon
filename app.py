@@ -29,7 +29,15 @@ except Exception as e:
     st.error(f"Erro ao carregar os arquivos. Certifique-se de que 'resultados_predicoes_2024.csv' e 'modelo_vencedor_datathon.pkl' estão no repositório. Detalhes: {e}")
     st.stop()
 
-aba_simulador, aba_busca = st.tabs(["🔮 Simulador Preventivo", "🔍 Base Institucional (2024)"])
+# ==============================================================================
+# ESTRUTURA DE ABAS
+# ==============================================================================
+aba_simulador, aba_busca, aba_relatorio, aba_tradeoffs = st.tabs([
+    "🔮 Simulador Preventivo", 
+    "🔍 Base Institucional (2024)",
+    "📊 Relatório Gerencial",
+    "⚖️ Trade-offs do Modelo"
+])
 
 # ==============================================================================
 # ABA 1: SIMULADOR PREDITIVO
@@ -56,7 +64,6 @@ with aba_simulador:
         botao_simular = st.form_submit_button("Gerar Diagnóstico")
 
     if botao_simular:
-        # A ordem deve ser estritamente igual à lista "features" do treinamento
         colunas_treino = ['IEG', 'IPS', 'IPP', 'IPV', 'Idade_Atual', 'Anos_de_Passos_Magicos']
         
         input_dict = {
@@ -71,7 +78,6 @@ with aba_simulador:
         df_simulacao = pd.DataFrame([input_dict])[colunas_treino]
         
         try:
-            # Captura a probabilidade da classe 1 (Em Risco)
             probabilidade = modelo.predict_proba(df_simulacao)[0][1] * 100
             
             st.markdown("---")
@@ -89,9 +95,9 @@ with aba_simulador:
                     
             with col_texto:
                 if probabilidade >= 50.0:
-                    st.write("**Direcionamento:** O modelo cruzou o perfil comportamental e de engajamento do aluno e detectou um padrão forte de vulnerabilidade. É recomendada a inclusão na fila de acompanhamento psicopedagógico ativo.")
+                    st.write("**Direcionamento:** O modelo detectou um padrão forte de vulnerabilidade baseado no engajamento e maturidade. É recomendada a inclusão na fila de acompanhamento psicopedagógico ativo.")
                 else:
-                    st.write("**Direcionamento:** Os indicadores psicossociais e de maturidade do aluno apresentam estabilidade e resiliência frente aos desafios acadêmicos. Manter rotina padrão.")
+                    st.write("**Direcionamento:** Os indicadores psicossociais apresentam estabilidade frente aos desafios acadêmicos. Manter rotina padrão.")
                     
         except Exception as sim_error:
             st.error(f"Erro de processamento da simulação. Detalhes: {sim_error}")
@@ -112,3 +118,31 @@ with aba_busca:
         df_exibicao = df_exibicao[mask_ra | mask_nome]
         
     st.dataframe(df_exibicao, use_container_width=True, hide_index=True)
+
+# ==============================================================================
+# ABA 3: RELATÓRIO GERENCIAL
+# ==============================================================================
+with aba_relatorio:
+    st.markdown("### 📊 Relatório Analítico - Impact Lens")
+    st.markdown("Acesse o painel gerencial externo para visualizar as métricas de impacto, evolução consolidada dos alunos e dashboards interativos da instituição.")
+    st.link_button("Acessar Relatório Impact Lens", "https://passos-magicos-impact-lens.lovable.app", type="primary")
+
+# ==============================================================================
+# ABA 4: TRADE-OFFS DO MODELO
+# ==============================================================================
+with aba_tradeoffs:
+    st.markdown("### ⚖️ Trade-offs e Decisão do Modelo Preditivo")
+    st.markdown("""
+    A escolha do modelo preditivo definitivo envolveu uma análise de *trade-offs* entre a capacidade de capturar alunos em risco (*Recall*) e a necessidade de minimizar falsos alarmes (*Precision*).
+
+    #### O Modelo Campeão: Random Forest
+    
+    Durante o *Benchmark* comparativo com múltiplos algoritmos, o **Random Forest** foi eleito por apresentar o melhor equilíbrio estatístico e operacional para a ONG:
+    
+    * **Captura Eficiente (Recall de 77.8%):** O modelo consegue identificar a grande maioria dos alunos em estado de vulnerabilidade real. Utilizar modelos mais conservadores resultaria em ignorar alunos que necessitam de intervenção pedagógica.
+    * **Precisão Balanceada:** Ao contrário de modelos com viés de supernotificação (como a Regressão Logística, que apontaria risco para muitos alunos estáveis), a Floresta Aleatória mantém uma precisão superior, otimizando o tempo da equipe psicopedagógica.
+    * **Prevenção a Overfitting:** Por construir múltiplas árvores de decisão independentes, o algoritmo é estruturalmente resistente à memorização de dados. Isso garante previsões fluidas e respostas lógicas durante a simulação de cenários.
+
+    #### Conclusão de Negócio
+    No ecossistema da instituição, optou-se por priorizar a sensibilidade (*Recall*). O custo sistêmico de um "falso positivo" (alertar sobre um aluno que está bem) reflete-se apenas em uma conversa acolhedora adicional por parte da coordenação. É um trade-off humanizado e totalmente justificado frente ao risco de negligenciar um aluno em real defasagem.
+    """)
